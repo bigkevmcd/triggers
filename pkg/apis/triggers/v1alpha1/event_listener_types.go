@@ -90,6 +90,7 @@ type EventInterceptor struct {
 
 // WebhookInterceptor provides a webhook to intercept and pre-process events
 type WebhookInterceptor struct {
+	URL string `json:"url,omitempty"`
 	// ObjectRef is a reference to an object that will resolve to a cluster DNS
 	// name to use as the EventInterceptor. Either objectRef or url can be specified
 	// +optional

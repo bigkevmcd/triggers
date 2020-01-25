@@ -106,19 +106,27 @@ func (i *EventInterceptor) validate(ctx context.Context) *apis.FieldError {
 	}
 
 	if i.Webhook != nil {
-		if i.Webhook.ObjectRef == nil || i.Webhook.ObjectRef.Name == "" {
-			return apis.ErrMissingField("interceptor.webhook.objectRef")
-		}
 		w := i.Webhook
-		if w.ObjectRef.Kind != "Service" {
-			return apis.ErrInvalidValue(fmt.Errorf("invalid kind"), "interceptor.webhook.objectRef.kind")
+		if w.ObjectRef == nil && w.URL == "" {
+			return apis.ErrMultipleOneOf("interceptor.webhook.objectRef", "interceptor.webhook.url")
 		}
-
-		// Optional explicit match
-		if w.ObjectRef.APIVersion != "v1" {
-			return apis.ErrInvalidValue(fmt.Errorf("invalid apiVersion"), "interceptor.webhook.objectRef.apiVersion")
+		if w.ObjectRef == nil && w.URL == "" {
+			return apis.ErrMissingField("interceptor.webhook.url")
 		}
+		if w.ObjectRef != nil {
+			if w.ObjectRef.Name == "" {
+				return apis.ErrMissingField("interceptor.webhook.objectRef")
+			}
+			if w.ObjectRef.Kind != "Service" {
+				return apis.ErrInvalidValue(fmt.Errorf("invalid kind"), "interceptor.webhook.objectRef.kind")
+			}
 
+			// Optional explicit match
+			if w.ObjectRef.APIVersion != "v1" {
+				return apis.ErrInvalidValue(fmt.Errorf("invalid apiVersion"), "interceptor.webhook.objectRef.apiVersion")
+			}
+
+		}
 		for i, header := range w.Header {
 			// Enforce non-empty canonical header keys
 			if len(header.Name) == 0 || http.CanonicalHeaderKey(header.Name) != header.Name {

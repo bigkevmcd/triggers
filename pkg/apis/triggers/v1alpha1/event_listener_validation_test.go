@@ -161,7 +161,7 @@ func TestEventListenerValidate_error(t *testing.T) {
 				bldr.EventListenerTrigger("tb", "tt", "v1alpha1",
 					bldr.EventListenerTriggerInterceptor("svc", "", "", "")))),
 	}, {
-		name: "Interceptor Missing ObjectRef",
+		name: "Interceptor Missing ObjectRef and no URL",
 		el: &v1alpha1.EventListener{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "name",
@@ -191,6 +191,25 @@ func TestEventListenerValidate_error(t *testing.T) {
 							ObjectRef: &corev1.ObjectReference{
 								Name: "",
 							},
+						},
+					}},
+				}},
+			},
+		},
+	}, {
+		name: "Interceptor Empty URL",
+		el: &v1alpha1.EventListener{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "name",
+				Namespace: "namespace",
+			},
+			Spec: v1alpha1.EventListenerSpec{
+				Triggers: []v1alpha1.EventListenerTrigger{{
+					Bindings: []*v1alpha1.EventListenerBinding{{Name: "tb"}},
+					Template: v1alpha1.EventListenerTemplate{Name: "tt"},
+					Interceptors: []*v1alpha1.EventInterceptor{{
+						Webhook: &v1alpha1.WebhookInterceptor{
+							URL: "",
 						},
 					}},
 				}},
