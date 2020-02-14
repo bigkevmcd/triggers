@@ -75,10 +75,11 @@ type EventListenerTrigger struct {
 
 // EventInterceptor provides a hook to intercept and pre-process events
 type EventInterceptor struct {
-	Webhook *WebhookInterceptor `json:"webhook,omitempty"`
-	GitHub  *GitHubInterceptor  `json:"github,omitempty"`
-	GitLab  *GitLabInterceptor  `json:"gitlab,omitempty"`
-	CEL     *CELInterceptor     `json:"cel,omitempty"`
+	Webhook    *WebhookInterceptor    `json:"webhook,omitempty"`
+	GitHub     *GitHubInterceptor     `json:"github,omitempty"`
+	GitLab     *GitLabInterceptor     `json:"gitlab,omitempty"`
+	CEL        *CELInterceptor        `json:"cel,omitempty"`
+	FormDecode *FormDecodeInterceptor `json:"formdecode,omitempty"`
 }
 
 // WebhookInterceptor provides a webhook to intercept and pre-process events
@@ -115,6 +116,12 @@ type CELInterceptor struct {
 type CELOverlay struct {
 	Key        string `json:"key,omitempty"`
 	Expression string `json:"expression,omitempty"`
+}
+
+// FormDecodeInterceptor provides a webhook to intercept and pre-process events
+type FormDecodeInterceptor struct {
+	Prefix  string `json:"prefix"`
+	Flatten bool   `json:"flatten"`
 }
 
 // SecretRef contains the information required to reference a single secret string
