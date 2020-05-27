@@ -43,7 +43,7 @@ TriggerBindings can access values from the HTTP JSON body and the headers using
 JSONPath expressions wrapped in `$()`. The key in the header is
 case-insensitive.
 
-Additionally, if the GitHub interceptor is enabled, then a representation of the
+Additionally, if the GitHub or GitLab interceptors are enabled, then a representation of the
 hook is also available.
 
 These are all valid expressions:

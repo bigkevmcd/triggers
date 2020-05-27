@@ -23,13 +23,16 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
-	"github.com/tektoncd/pipeline/pkg/logging"
-	triggersv1 "github.com/tektoncd/triggers/pkg/apis/triggers/v1alpha1"
+	"github.com/jenkins-x/go-scm/scm"
+	"github.com/jenkins-x/go-scm/scm/driver/gitlab"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	fakekubeclient "knative.dev/pkg/client/injection/kube/client/fake"
 	rtesting "knative.dev/pkg/reconciler/testing"
+
+	"github.com/tektoncd/pipeline/pkg/logging"
+	triggersv1 "github.com/tektoncd/triggers/pkg/apis/triggers/v1alpha1"
+	"github.com/tektoncd/triggers/pkg/interceptors"
 )
 
 func TestInterceptor_ExecuteTrigger(t *testing.T) {
@@ -40,20 +43,22 @@ func TestInterceptor_ExecuteTrigger(t *testing.T) {
 		eventType string
 	}
 	tests := []struct {
-		name    string
-		GitLab  *triggersv1.GitLabInterceptor
-		args    args
-		want    []byte
-		wantErr bool
+		name            string
+		GitLab          *triggersv1.GitLabInterceptor
+		args            args
+		want            []byte
+		wantErr         bool
+		wantContextHook scm.Webhook
 	}{
 		{
 			name:   "no secret",
 			GitLab: &triggersv1.GitLabInterceptor{},
 			args: args{
-				payload: []byte("somepayload"),
-				token:   "foo",
+				payload:   []byte("{}"),
+				token:     "foo",
+				eventType: "Push Hook",
 			},
-			want:    []byte("somepayload"),
+			want:    []byte("{}"),
 			wantErr: false,
 		},
 		{
@@ -96,27 +101,28 @@ func TestInterceptor_ExecuteTrigger(t *testing.T) {
 						"token": []byte("secret"),
 					},
 				},
-				payload: []byte("somepayload"),
+				payload:   []byte("{}"),
+				eventType: "Push Hook",
 			},
 			wantErr: false,
-			want:    []byte("somepayload"),
+			want:    []byte("{}"),
 		},
 		{
 			name: "valid event",
 			GitLab: &triggersv1.GitLabInterceptor{
-				EventTypes: []string{"foo", "bar"},
+				EventTypes: []string{"Push Hook", "Merge Request Hook"},
 			},
 			args: args{
-				eventType: "foo",
-				payload:   []byte("somepayload"),
+				eventType: "Push Hook",
+				payload:   []byte("{}"),
 			},
 			wantErr: false,
-			want:    []byte("somepayload"),
+			want:    []byte("{}"),
 		},
 		{
 			name: "invalid event",
 			GitLab: &triggersv1.GitLabInterceptor{
-				EventTypes: []string{"foo", "bar"},
+				EventTypes: []string{"Push Hook", "Merge Request Hook"},
 			},
 			args: args{
 				eventType: "baz",
@@ -134,7 +140,7 @@ func TestInterceptor_ExecuteTrigger(t *testing.T) {
 				},
 			},
 			args: args{
-				eventType: "bar",
+				eventType: "Push Hook",
 				payload:   []byte("somepayload"),
 				token:     "foo",
 				secret: &corev1.Secret{
@@ -175,15 +181,15 @@ func TestInterceptor_ExecuteTrigger(t *testing.T) {
 		{
 			name: "valid event, valid secret",
 			GitLab: &triggersv1.GitLabInterceptor{
-				EventTypes: []string{"foo", "bar"},
+				EventTypes: []string{"Push Hook", "Merge Request Hook"},
 				SecretRef: &triggersv1.SecretRef{
 					SecretName: "mysecret",
 					SecretKey:  "token",
 				},
 			},
 			args: args{
-				eventType: "bar",
-				payload:   []byte("somepayload"),
+				eventType: "Push Hook",
+				payload:   []byte("{}"),
 				token:     "secrettoken",
 				secret: &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
@@ -194,7 +200,19 @@ func TestInterceptor_ExecuteTrigger(t *testing.T) {
 					},
 				},
 			},
-			want: []byte("somepayload"),
+			want: []byte("{}"),
+		},
+		{
+			name: "adding the hook to the context",
+			GitLab: &triggersv1.GitLabInterceptor{
+				EventTypes: []string{"Push Hook"},
+			},
+			args: args{
+				payload:   []byte(`{"ref":"refs/heads/master","project":{"id":15}}`),
+				eventType: "Push Hook",
+			},
+			wantContextHook: &scm.PushHook{Ref: "refs/heads/master", Repo: scm.Repository{ID: "15"}},
+			want:            []byte(`{"ref":"refs/heads/master","project":{"id":15}}`),
 		},
 	}
 	for _, tt := range tests {
@@ -227,8 +245,9 @@ func TestInterceptor_ExecuteTrigger(t *testing.T) {
 				KubeClientSet: kubeClient,
 				GitLab:        tt.GitLab,
 				Logger:        logger,
+				scmClient:     gitlab.NewDefault(),
 			}
-			_, resp, err := w.ExecuteTrigger(request)
+			ctx, resp, err := w.ExecuteTrigger(request)
 			if err != nil {
 				if !tt.wantErr {
 					t.Errorf("Interceptor.ExecuteTrigger() error = %v, wantErr %v", err, tt.wantErr)
@@ -243,6 +262,16 @@ func TestInterceptor_ExecuteTrigger(t *testing.T) {
 			defer resp.Body.Close()
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("Interceptor.ExecuteTrigger (-want, +got) = %s", diff)
+			}
+
+			if tt.wantContextHook != nil {
+				h, ok := interceptors.InterceptedHook(ctx)
+				if !ok {
+					t.Fatal("failed to find the intercepted hook")
+				}
+				if diff := cmp.Diff(tt.wantContextHook, h); diff != "" {
+					t.Errorf("hook comparison failed:\n%s", diff)
+				}
 			}
 		})
 	}

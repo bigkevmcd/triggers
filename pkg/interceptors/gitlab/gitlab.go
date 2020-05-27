@@ -17,12 +17,14 @@ limitations under the License.
 package gitlab
 
 import (
+	"bytes"
 	"context"
-	"crypto/subtle"
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
+	"github.com/jenkins-x/go-scm/scm"
+	"github.com/jenkins-x/go-scm/scm/driver/gitlab"
 	"github.com/tektoncd/triggers/pkg/interceptors"
 
 	triggersv1 "github.com/tektoncd/triggers/pkg/apis/triggers/v1alpha1"
@@ -36,6 +38,7 @@ type Interceptor struct {
 	Logger                 *zap.SugaredLogger
 	GitLab                 *triggersv1.GitLabInterceptor
 	EventListenerNamespace string
+	scmClient              *scm.Client
 }
 
 func NewInterceptor(gl *triggersv1.GitLabInterceptor, k kubernetes.Interface, ns string, l *zap.SugaredLogger) interceptors.Interceptor {
@@ -44,27 +47,38 @@ func NewInterceptor(gl *triggersv1.GitLabInterceptor, k kubernetes.Interface, ns
 		GitLab:                 gl,
 		KubeClientSet:          k,
 		EventListenerNamespace: ns,
+		scmClient:              gitlab.NewDefault(),
 	}
 }
 
 func (w *Interceptor) ExecuteTrigger(request *http.Request) (context.Context, *http.Response, error) {
-	// Validate the secret first, if set.
-	if w.GitLab.SecretRef != nil {
-		header := request.Header.Get("X-GitLab-Token")
-		if header == "" {
-			return nil, nil, errors.New("no X-GitLab-Token header set")
-		}
+	payload := []byte{}
+	var err error
 
-		secretToken, err := interceptors.GetSecretToken(w.KubeClientSet, w.GitLab.SecretRef, w.EventListenerNamespace)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// Make sure to use a constant time comparison here.
-		if subtle.ConstantTimeCompare([]byte(header), secretToken) == 0 {
-			return nil, nil, errors.New("Invalid X-GitLab-Token")
-		}
+	defer request.Body.Close()
+	payload, err = ioutil.ReadAll(request.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read request body: %w", err)
 	}
+
+	ctx := request.Context()
+	request.Body = ioutil.NopCloser(bytes.NewBuffer(payload))
+	hook, err := w.scmClient.Webhooks.Parse(request, func(scm.Webhook) (string, error) {
+		if w.GitLab.SecretRef == nil {
+			return "", nil
+		}
+		b, err := interceptors.GetSecretToken(w.KubeClientSet, w.GitLab.SecretRef, w.EventListenerNamespace)
+		if err != nil {
+			return "", nil
+		}
+		return string(b), nil
+	})
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse the webhook: %w", err)
+	}
+	ctx = interceptors.WithHook(request.Context(), hook)
+
 	if w.GitLab.EventTypes != nil {
 		actualEvent := request.Header.Get("X-GitLab-Event")
 		isAllowed := false
@@ -79,8 +93,8 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (context.Context, *h
 		}
 	}
 
-	return request.Context(), &http.Response{
+	return ctx, &http.Response{
 		Header: request.Header,
-		Body:   request.Body,
+		Body:   ioutil.NopCloser(bytes.NewBuffer(payload)),
 	}, nil
 }
