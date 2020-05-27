@@ -17,6 +17,7 @@ limitations under the License.
 package webhook
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -56,10 +57,10 @@ func NewInterceptor(wh *triggersv1.WebhookInterceptor, c *http.Client, ns string
 	}
 }
 
-func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, error) {
+func (w *Interceptor) ExecuteTrigger(request *http.Request) (context.Context, *http.Response, error) {
 	u, err := getURI(w.Webhook.ObjectRef, w.EventListenerNamespace) // TODO: Cache this result or do this on initialization
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	request.URL = u
 	request.Host = u.Host
@@ -67,16 +68,16 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, err
 
 	resp, err := w.HTTPClient.Do(request)
 	if err != nil {
-		return resp, err
+		return nil, resp, err
 	}
 	if resp.StatusCode != http.StatusOK {
 		respBody, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return resp, errors.New("failed to parse response body")
+			return nil, resp, errors.New("failed to parse response body")
 		}
-		return resp, fmt.Errorf("request rejected; status: %s; message: %s", resp.Status, respBody)
+		return nil, resp, fmt.Errorf("request rejected; status: %s; message: %s", resp.Status, respBody)
 	}
-	return resp, err
+	return request.Context(), resp, err
 }
 
 // getURI retrieves the ObjectReference to URI.

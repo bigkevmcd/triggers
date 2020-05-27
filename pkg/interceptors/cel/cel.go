@@ -18,6 +18,7 @@ package cel
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -59,10 +60,10 @@ func NewInterceptor(cel *triggersv1.CELInterceptor, k kubernetes.Interface, ns s
 }
 
 // ExecuteTrigger is an implementation of the Interceptor interface.
-func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, error) {
+func (w *Interceptor) ExecuteTrigger(request *http.Request) (context.Context, *http.Response, error) {
 	env, err := makeCelEnv(w.EventListenerNamespace, w.KubeClientSet)
 	if err != nil {
-		return nil, fmt.Errorf("error creating cel environment: %w", err)
+		return nil, nil, fmt.Errorf("error creating cel environment: %w", err)
 	}
 
 	var payload = []byte(`{}`)
@@ -70,30 +71,30 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, err
 		defer request.Body.Close()
 		payload, err = ioutil.ReadAll(request.Body)
 		if err != nil {
-			return nil, fmt.Errorf("error reading request body: %w", err)
+			return nil, nil, fmt.Errorf("error reading request body: %w", err)
 		}
 	}
 
 	evalContext, err := makeEvalContext(payload, request)
 	if err != nil {
-		return nil, fmt.Errorf("error making the evaluation context: %w", err)
+		return nil, nil, fmt.Errorf("error making the evaluation context: %w", err)
 	}
 
 	if w.CEL.Filter != "" {
 		out, err := evaluate(w.CEL.Filter, env, evalContext)
 		if err != nil {
-			return nil, fmt.Errorf("failed to evaluate expression '%s': %w", w.CEL.Filter, err)
+			return nil, nil, fmt.Errorf("failed to evaluate expression '%s': %w", w.CEL.Filter, err)
 		}
 
 		if out != types.True {
-			return nil, fmt.Errorf("expression %s did not return true", w.CEL.Filter)
+			return nil, nil, fmt.Errorf("expression %s did not return true", w.CEL.Filter)
 		}
 	}
 
 	for _, u := range w.CEL.Overlays {
 		val, err := evaluate(u.Expression, env, evalContext)
 		if err != nil {
-			return nil, fmt.Errorf("failed to evaluate overlay expression '%s': %w", u.Expression, err)
+			return nil, nil, fmt.Errorf("failed to evaluate overlay expression '%s': %w", u.Expression, err)
 		}
 
 		var raw interface{}
@@ -117,16 +118,16 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, err
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert overlay result to bytes: %w", err)
+			return nil, nil, fmt.Errorf("failed to convert overlay result to bytes: %w", err)
 		}
 
 		payload, err = sjson.SetRawBytes(payload, u.Key, b)
 		if err != nil {
-			return nil, fmt.Errorf("failed to sjson for key '%s' to '%s': %w", u.Key, val, err)
+			return nil, nil, fmt.Errorf("failed to sjson for key '%s' to '%s': %w", u.Key, val, err)
 		}
 	}
 
-	return &http.Response{
+	return request.Context(), &http.Response{
 		Header: request.Header,
 		Body:   ioutil.NopCloser(bytes.NewBuffer(payload)),
 	}, nil

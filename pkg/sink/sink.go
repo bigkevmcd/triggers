@@ -18,6 +18,7 @@ package sink
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -141,7 +142,7 @@ func (r Sink) processTrigger(t *triggersv1.EventListenerTrigger, request *http.R
 	}
 	log := eventLog.With(zap.String(triggersv1.TriggerLabelKey, t.Name))
 
-	finalPayload, header, err := r.executeInterceptors(t, request, event, log)
+	ctx, finalPayload, header, err := r.executeInterceptors(t, request, event, log)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -156,7 +157,7 @@ func (r Sink) processTrigger(t *triggersv1.EventListenerTrigger, request *http.R
 		return err
 	}
 
-	params, err := template.ResolveParams(rt, finalPayload, header)
+	params, err := template.ResolveParams(ctx, rt, finalPayload, header)
 	if err != nil {
 		log.Error(err)
 		return err
@@ -176,9 +177,10 @@ func (r Sink) processTrigger(t *triggersv1.EventListenerTrigger, request *http.R
 	return nil
 }
 
-func (r Sink) executeInterceptors(t *triggersv1.EventListenerTrigger, in *http.Request, event []byte, log *zap.SugaredLogger) ([]byte, http.Header, error) {
+func (r Sink) executeInterceptors(t *triggersv1.EventListenerTrigger, in *http.Request, event []byte, log *zap.SugaredLogger) (context.Context, []byte, http.Header, error) {
+	ctx := context.Background()
 	if len(t.Interceptors) == 0 {
-		return event, in.Header, nil
+		return ctx, event, in.Header, nil
 	}
 
 	// The request body to the first interceptor in the chain should be the received event body.
@@ -202,13 +204,13 @@ func (r Sink) executeInterceptors(t *triggersv1.EventListenerTrigger, in *http.R
 		case i.Bitbucket != nil:
 			interceptor = bitbucket.NewInterceptor(i.Bitbucket, r.KubeClientSet, r.EventListenerNamespace, log)
 		default:
-			return nil, nil, fmt.Errorf("unknown interceptor type: %v", i)
+			return nil, nil, nil, fmt.Errorf("unknown interceptor type: %v", i)
 		}
 		var err error
-		resp, err = interceptor.ExecuteTrigger(request)
+		ctx, resp, err = interceptor.ExecuteTrigger(request.Clone(ctx))
 		if err != nil {
 			log.Error(err)
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		// Set the next request to be the output of the last response to enable
@@ -221,10 +223,10 @@ func (r Sink) executeInterceptors(t *triggersv1.EventListenerTrigger, in *http.R
 	}
 	payload, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error reading final response body: %w", err)
+		return nil, nil, nil, fmt.Errorf("error reading final response body: %w", err)
 	}
 	defer resp.Body.Close()
-	return payload, resp.Header, nil
+	return ctx, payload, resp.Header, nil
 }
 
 func (r Sink) createResources(token string, res []json.RawMessage, triggerName, eventID string, log *zap.SugaredLogger) error {

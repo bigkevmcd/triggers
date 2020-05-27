@@ -245,7 +245,7 @@ func TestInterceptor_ExecuteTrigger_Signature(t *testing.T) {
 				Bitbucket:     tt.Bitbucket,
 				Logger:        logger,
 			}
-			resp, err := w.ExecuteTrigger(request)
+			_, resp, err := w.ExecuteTrigger(request)
 			if err != nil {
 				if !tt.wantErr {
 					t.Errorf("Interceptor.ExecuteTrigger() error = %v, wantErr %v", err, tt.wantErr)

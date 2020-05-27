@@ -18,12 +18,13 @@ package github
 
 import (
 	"bytes"
-	"errors"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 
-	gh "github.com/google/go-github/v31/github"
+	"github.com/jenkins-x/go-scm/scm"
+	"github.com/jenkins-x/go-scm/scm/driver/github"
 	triggersv1 "github.com/tektoncd/triggers/pkg/apis/triggers/v1alpha1"
 	"github.com/tektoncd/triggers/pkg/interceptors"
 	"go.uber.org/zap"
@@ -35,6 +36,7 @@ type Interceptor struct {
 	Logger                 *zap.SugaredLogger
 	GitHub                 *triggersv1.GitHubInterceptor
 	EventListenerNamespace string
+	scmClient              *scm.Client
 }
 
 func NewInterceptor(gh *triggersv1.GitHubInterceptor, k kubernetes.Interface, ns string, l *zap.SugaredLogger) interceptors.Interceptor {
@@ -43,10 +45,11 @@ func NewInterceptor(gh *triggersv1.GitHubInterceptor, k kubernetes.Interface, ns
 		GitHub:                 gh,
 		KubeClientSet:          k,
 		EventListenerNamespace: ns,
+		scmClient:              github.NewDefault(),
 	}
 }
 
-func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, error) {
+func (w *Interceptor) ExecuteTrigger(request *http.Request) (context.Context, *http.Response, error) {
 	payload := []byte{}
 	var err error
 
@@ -54,22 +57,7 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, err
 		defer request.Body.Close()
 		payload, err = ioutil.ReadAll(request.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read request body: %w", err)
-		}
-	}
-
-	// Validate secrets first before anything else, if set
-	if w.GitHub.SecretRef != nil {
-		header := request.Header.Get("X-Hub-Signature")
-		if header == "" {
-			return nil, errors.New("no X-Hub-Signature header set")
-		}
-		secretToken, err := interceptors.GetSecretToken(w.KubeClientSet, w.GitHub.SecretRef, w.EventListenerNamespace)
-		if err != nil {
-			return nil, err
-		}
-		if err := gh.ValidateSignature(header, payload, secretToken); err != nil {
-			return nil, err
+			return nil, nil, fmt.Errorf("failed to read request body: %w", err)
 		}
 	}
 
@@ -84,11 +72,31 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, err
 			}
 		}
 		if !isAllowed {
-			return nil, fmt.Errorf("event type %s is not allowed", actualEvent)
+			return nil, nil, fmt.Errorf("event type %s is not allowed", actualEvent)
 		}
 	}
+	ctx := request.Context()
+	// This doesn't look right, not sure how we can get an empty body, other than
+	// with an error elsewhere.
+	if len(payload) > 0 {
+		request.Body = ioutil.NopCloser(bytes.NewBuffer(payload))
+		hook, err := w.scmClient.Webhooks.Parse(request, func(scm.Webhook) (string, error) {
+			if w.GitHub.SecretRef == nil {
+				return "", nil
+			}
+			b, err := interceptors.GetSecretToken(w.KubeClientSet, w.GitHub.SecretRef, w.EventListenerNamespace)
+			if err != nil {
+				return "", nil
+			}
+			return string(b), nil
+		})
 
-	return &http.Response{
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse the webhook: %w", err)
+		}
+		ctx = interceptors.WithHook(request.Context(), hook)
+	}
+	return ctx, &http.Response{
 		Header: request.Header,
 		Body:   ioutil.NopCloser(bytes.NewBuffer(payload)),
 	}, nil

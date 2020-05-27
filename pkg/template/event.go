@@ -17,23 +17,26 @@ limitations under the License.
 package template
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"github.com/jenkins-x/go-scm/scm"
 	triggersv1 "github.com/tektoncd/triggers/pkg/apis/triggers/v1alpha1"
+	"github.com/tektoncd/triggers/pkg/interceptors"
 )
 
 // ResolveParams takes given triggerbindings and produces the resulting
 // resource params.
-func ResolveParams(rt ResolvedTrigger, body []byte, header http.Header) ([]triggersv1.Param, error) {
+func ResolveParams(ctx context.Context, rt ResolvedTrigger, body []byte, header http.Header) ([]triggersv1.Param, error) {
 	out, err := MergeBindingParams(rt.TriggerBindings, rt.ClusterTriggerBindings)
 	if err != nil {
 		return nil, fmt.Errorf("error merging trigger params: %w", err)
 	}
 
-	out, err = applyEventValuesToParams(out, body, header)
+	out, err = applyEventValuesToParams(ctx, out, body, header)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ApplyEventValuesToParams: %w", err)
 	}
@@ -56,10 +59,11 @@ func ResolveResources(template *triggersv1.TriggerTemplate, params []triggersv1.
 type event struct {
 	Header map[string]string `json:"header"`
 	Body   interface{}       `json:"body"`
+	Hook   interface{}       `json:"hook,omitempty"`
 }
 
 // newEvent returns a new Event from HTTP headers and body
-func newEvent(body []byte, headers http.Header) (*event, error) {
+func newEvent(body []byte, headers http.Header, hook scm.Webhook) (*event, error) {
 	var data interface{}
 	if len(body) > 0 {
 		if err := json.Unmarshal(body, &data); err != nil {
@@ -74,13 +78,15 @@ func newEvent(body []byte, headers http.Header) (*event, error) {
 	return &event{
 		Header: joinedHeaders,
 		Body:   data,
+		Hook:   hook,
 	}, nil
 }
 
 // applyEventValuesToParams returns a slice of Params with the JSONPath variables replaced
 // with values from the event body and headers.
-func applyEventValuesToParams(params []triggersv1.Param, body []byte, header http.Header) ([]triggersv1.Param, error) {
-	event, err := newEvent(body, header)
+func applyEventValuesToParams(ctx context.Context, params []triggersv1.Param, body []byte, header http.Header) ([]triggersv1.Param, error) {
+	hook, _ := interceptors.InterceptedHook(ctx)
+	event, err := newEvent(body, header, hook)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal event: %w", err)
 	}

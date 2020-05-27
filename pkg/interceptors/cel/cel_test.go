@@ -194,7 +194,7 @@ func TestInterceptor_ExecuteTrigger(t *testing.T) {
 					"X-Secret-Token": []string{"secrettoken"},
 				},
 			}
-			resp, err := w.ExecuteTrigger(request)
+			_, resp, err := w.ExecuteTrigger(request)
 			if err != nil {
 				rt.Errorf("Interceptor.ExecuteTrigger() error = %v", err)
 				return
@@ -287,7 +287,7 @@ func TestInterceptor_ExecuteTrigger_Errors(t *testing.T) {
 					"X-Test":       []string{"test-value"},
 				},
 			}
-			_, err := w.ExecuteTrigger(request)
+			_, _, err := w.ExecuteTrigger(request)
 			if !matchError(t, tt.want, err) {
 				t.Errorf("evaluate() got %s, wanted %s", err, tt.want)
 				return

@@ -17,8 +17,10 @@ limitations under the License.
 package interceptors
 
 import (
+	"context"
 	"net/http"
 
+	"github.com/jenkins-x/go-scm/scm"
 	triggersv1 "github.com/tektoncd/triggers/pkg/apis/triggers/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -26,7 +28,7 @@ import (
 
 // Interceptor is the interface that all interceptors implement.
 type Interceptor interface {
-	ExecuteTrigger(req *http.Request) (*http.Response, error)
+	ExecuteTrigger(req *http.Request) (context.Context, *http.Response, error)
 }
 
 func GetSecretToken(cs kubernetes.Interface, sr *triggersv1.SecretRef, eventListenerNamespace string) ([]byte, error) {
@@ -40,4 +42,19 @@ func GetSecretToken(cs kubernetes.Interface, sr *triggersv1.SecretRef, eventList
 	}
 
 	return secret.Data[sr.SecretKey], nil
+}
+
+var (
+	interceptedHookCtxKey = "intercepted-hook"
+)
+
+// InterceptedHook gets the hook from the context.
+func InterceptedHook(ctx context.Context) (scm.Webhook, bool) {
+	hook, ok := ctx.Value(interceptedHookCtxKey).(scm.Webhook)
+	return hook, ok
+}
+
+// WithHook sets the hook into the context.
+func WithHook(ctx context.Context, h scm.Webhook) context.Context {
+	return context.WithValue(ctx, interceptedHookCtxKey, h)
 }

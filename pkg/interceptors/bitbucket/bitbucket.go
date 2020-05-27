@@ -18,6 +18,7 @@ package bitbucket
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -46,7 +47,7 @@ func NewInterceptor(bh *triggersv1.BitBucketInterceptor, k kubernetes.Interface,
 	}
 }
 
-func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, error) {
+func (w *Interceptor) ExecuteTrigger(request *http.Request) (context.Context, *http.Response, error) {
 	payload := []byte{}
 	var err error
 
@@ -54,7 +55,7 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, err
 		defer request.Body.Close()
 		payload, err = ioutil.ReadAll(request.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read request body: %w", err)
+			return nil, nil, fmt.Errorf("failed to read request body: %w", err)
 		}
 	}
 
@@ -62,14 +63,14 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, err
 	if w.Bitbucket.SecretRef != nil {
 		header := request.Header.Get("X-Hub-Signature")
 		if header == "" {
-			return nil, errors.New("no X-Hub-Signature header set")
+			return nil, nil, errors.New("no X-Hub-Signature header set")
 		}
 		secretToken, err := interceptors.GetSecretToken(w.KubeClientSet, w.Bitbucket.SecretRef, w.EventListenerNamespace)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if err := gh.ValidateSignature(header, payload, secretToken); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -84,10 +85,10 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, err
 			}
 		}
 		if !isAllowed {
-			return nil, fmt.Errorf("event type %s is not allowed", actualEvent)
+			return nil, nil, fmt.Errorf("event type %s is not allowed", actualEvent)
 		}
 	}
-	return &http.Response{
+	return request.Context(), &http.Response{
 		Header: request.Header,
 		Body:   ioutil.NopCloser(bytes.NewBuffer(payload)),
 	}, nil

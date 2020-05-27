@@ -17,6 +17,7 @@ limitations under the License.
 package template
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -24,11 +25,14 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	triggersv1 "github.com/tektoncd/triggers/pkg/apis/triggers/v1alpha1"
+	"github.com/jenkins-x/go-scm/scm"
 	"github.com/tektoncd/triggers/test"
-	bldr "github.com/tektoncd/triggers/test/builder"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
+
+	triggersv1 "github.com/tektoncd/triggers/pkg/apis/triggers/v1alpha1"
+	"github.com/tektoncd/triggers/pkg/interceptors"
+	bldr "github.com/tektoncd/triggers/test/builder"
 )
 
 const (
@@ -53,6 +57,7 @@ func TestApplyEventValuesToParams(t *testing.T) {
 		body   []byte
 		header http.Header
 		want   []triggersv1.Param
+		hook   scm.Webhook
 	}{{
 		name:   "header with single values",
 		params: []triggersv1.Param{bldr.Param("foo", "$(header)")},
@@ -167,11 +172,20 @@ func TestApplyEventValuesToParams(t *testing.T) {
 		body:   json.RawMessage(`{"child":[{"a": "b", "w": "1"}, {"a": "c", "w": "2"}, {"a": "d", "w": "3"}]}`),
 		params: []triggersv1.Param{bldr.Param("a", "$(body.child[?(@.a == 'd')].w) : $(body.child[0].a)")},
 		want:   []triggersv1.Param{bldr.Param("a", "3 : b")},
+	}, {
+		name:   "context with hook",
+		body:   json.RawMessage(`{}`),
+		params: []triggersv1.Param{bldr.Param("foo", "$(hook.Ref)")},
+		want:   []triggersv1.Param{bldr.Param("foo", "refs/heads/master")},
+		hook:   &scm.PushHook{Ref: "refs/heads/master"},
 	}}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := applyEventValuesToParams(tt.params, tt.body, tt.header)
+			ctx := context.Background()
+			if tt.hook != nil {
+				ctx = interceptors.WithHook(ctx, tt.hook)
+			}
+			got, err := applyEventValuesToParams(ctx, tt.params, tt.body, tt.header)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -200,11 +214,16 @@ func TestApplyEventValuesToParams_Error(t *testing.T) {
 		name:   "invalid expression(s)",
 		params: []triggersv1.Param{bldr.Param("foo", "$(body.[0])")},
 		body:   json.RawMessage(`["a", "b"]`),
+	}, {
+		name:   "hook ref with no context hook",
+		body:   json.RawMessage(`{}`),
+		params: []triggersv1.Param{bldr.Param("foo", "$(hook.Ref)")},
 	}}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := applyEventValuesToParams(tt.params, tt.body, tt.header)
+			ctx := context.Background()
+			got, err := applyEventValuesToParams(ctx, tt.params, tt.body, tt.header)
 			if err == nil {
 				t.Errorf("did not get expected error - got: %v", got)
 			}
@@ -321,12 +340,13 @@ func TestResolveParams(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
 			rt := ResolvedTrigger{
 				TriggerBindings:        tt.bindings,
 				ClusterTriggerBindings: tt.clusterBindings,
 				TriggerTemplate:        tt.template,
 			}
-			params, err := ResolveParams(rt, tt.body, map[string][]string{})
+			params, err := ResolveParams(ctx, rt, tt.body, map[string][]string{})
 			if err != nil {
 				t.Fatalf("ResolveParams() returned unexpected error: %s", err)
 			}
@@ -376,7 +396,8 @@ func TestResolveParams_Error(t *testing.T) {
 				TriggerBindings:        tt.bindings,
 				ClusterTriggerBindings: tt.clusterBindings,
 			}
-			params, err := ResolveParams(rt, tt.body, map[string][]string{})
+			ctx := context.Background()
+			params, err := ResolveParams(ctx, rt, tt.body, map[string][]string{})
 			if err == nil {
 				t.Errorf("did not get expected error - got: %v", params)
 			}
