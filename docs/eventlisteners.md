@@ -349,6 +349,10 @@ accept to the `eventTypes` field. Valid values can be found in GitHub
 The body/header of the incoming request will be preserved in this Interceptor's
 response.
 
+This interceptor also makes an additional `hook` field available to
+TriggerBindings, the information available depends on the type of hook received
+from GitHub.
+
 <!-- FILE: examples/github/github-eventlistener-interceptor.yaml -->
 ```YAML
 ---

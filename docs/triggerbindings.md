@@ -43,11 +43,16 @@ TriggerBindings can access values from the HTTP JSON body and the headers using
 JSONPath expressions wrapped in `$()`. The key in the header is
 case-insensitive.
 
+Additionally, if the GitHub interceptor is enabled, then a representation of the
+hook is also available.
+
 These are all valid expressions:
 
 ```shell script
 $(body.key1)
 $(.body.key)
+$(hook.Repo.Fullname) # dependent on the type of hook received.
+$(hook.Repo.Clone) # dependent on the type of hook received.
 ```
 
 These are invalid expressions:
@@ -70,7 +75,7 @@ $($($(body.b))) -> $(body.b)
 To access JSON keys that contain `.` character, we need to escape the `.` e.g.
 
 ```shell script
-# body contains a filed called "tekton.dev" e.g. {"body": {"tekton.dev": "triggers"}}
+# body contains a field called "tekton.dev" e.g. {"body": {"tekton.dev": "triggers"}}
 $(body.tekton\.dev) -> "triggers"
 ```
 
