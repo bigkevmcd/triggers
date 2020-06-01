@@ -13,7 +13,7 @@ require (
 	github.com/google/go-github/v31 v31.0.0
 	github.com/gorilla/mux v1.7.3
 	github.com/grpc-ecosystem/grpc-gateway v1.13.0 // indirect
-	github.com/jenkins-x/go-scm v1.5.137
+	github.com/jenkins-x/go-scm v1.5.140
 	github.com/openzipkin/zipkin-go v0.2.2 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/tektoncd/pipeline v0.11.3
