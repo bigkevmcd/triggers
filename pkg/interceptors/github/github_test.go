@@ -95,7 +95,7 @@ func TestInterceptor_ExecuteTrigger_Signature(t *testing.T) {
 				},
 			},
 			args: args{
-				signature: test.GitHubSignature(t, testSecret, []byte("{}")),
+				signature: test.SHA1Signature(t, testSecret, []byte("{}")),
 				eventType: "push",
 				secret: &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
@@ -143,7 +143,7 @@ func TestInterceptor_ExecuteTrigger_Signature(t *testing.T) {
 				EventTypes: []string{"push", "pull_request"},
 			},
 			args: args{
-				signature: test.GitHubSignature(t, testSecret, []byte("{}")),
+				signature: test.SHA1Signature(t, testSecret, []byte("{}")),
 				secret: &corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "mysecret",
