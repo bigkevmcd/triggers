@@ -19,12 +19,12 @@ package bitbucket
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 
-	gh "github.com/google/go-github/v31/github"
+	"github.com/jenkins-x/go-scm/scm"
+	"github.com/jenkins-x/go-scm/scm/driver/stash"
 	triggersv1 "github.com/tektoncd/triggers/pkg/apis/triggers/v1alpha1"
 	"github.com/tektoncd/triggers/pkg/interceptors"
 	"go.uber.org/zap"
@@ -36,6 +36,7 @@ type Interceptor struct {
 	Logger                 *zap.SugaredLogger
 	Bitbucket              *triggersv1.BitBucketInterceptor
 	EventListenerNamespace string
+	scmClient              *scm.Client
 }
 
 func NewInterceptor(bh *triggersv1.BitBucketInterceptor, k kubernetes.Interface, ns string, l *zap.SugaredLogger) interceptors.Interceptor {
@@ -44,6 +45,7 @@ func NewInterceptor(bh *triggersv1.BitBucketInterceptor, k kubernetes.Interface,
 		Bitbucket:              bh,
 		KubeClientSet:          k,
 		EventListenerNamespace: ns,
+		scmClient:              stash.NewDefault(),
 	}
 }
 
@@ -59,19 +61,24 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (context.Context, *h
 		}
 	}
 
-	// Validate secrets first before anything else, if set
-	if w.Bitbucket.SecretRef != nil {
-		header := request.Header.Get("X-Hub-Signature")
-		if header == "" {
-			return nil, nil, errors.New("no X-Hub-Signature header set")
-		}
-		secretToken, err := interceptors.GetSecretToken(w.KubeClientSet, w.Bitbucket.SecretRef, w.EventListenerNamespace)
+	ctx := request.Context()
+	if len(payload) > 0 {
+		request.Body = ioutil.NopCloser(bytes.NewBuffer(payload))
+		hook, err := w.scmClient.Webhooks.Parse(request, func(scm.Webhook) (string, error) {
+			if w.Bitbucket.SecretRef == nil {
+				return "", nil
+			}
+			b, err := interceptors.GetSecretToken(w.KubeClientSet, w.Bitbucket.SecretRef, w.EventListenerNamespace)
+			if err != nil {
+				return "", nil
+			}
+			return string(b), nil
+		})
+
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("failed to parse the webhook: %w", err)
 		}
-		if err := gh.ValidateSignature(header, payload, secretToken); err != nil {
-			return nil, nil, err
-		}
+		ctx = interceptors.WithHook(request.Context(), hook)
 	}
 
 	// Next see if the event type is in the allow-list
@@ -88,7 +95,7 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (context.Context, *h
 			return nil, nil, fmt.Errorf("event type %s is not allowed", actualEvent)
 		}
 	}
-	return request.Context(), &http.Response{
+	return ctx, &http.Response{
 		Header: request.Header,
 		Body:   ioutil.NopCloser(bytes.NewBuffer(payload)),
 	}, nil

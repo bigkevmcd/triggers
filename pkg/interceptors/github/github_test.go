@@ -282,7 +282,7 @@ func TestInterceptor_ExecuteTrigger_Signature(t *testing.T) {
 			if tt.wantContextHook != nil {
 				_, ok := interceptors.InterceptedHook(ctx)
 				if !ok {
-					t.Fatal("failed to find the intercepted hook")
+					t.Error("failed to find the intercepted hook")
 				}
 			}
 		})
