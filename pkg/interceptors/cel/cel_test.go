@@ -135,12 +135,25 @@ func TestInterceptor_ExecuteTrigger(t *testing.T) {
 				Filter: "body.value == 'test'",
 				Overlays: []triggersv1.CELOverlay{
 					{Key: "test.one", Expression: "body.value"},
+					{Key: "test.two", Expression: "body.test.one.truncate(2)"},
+				},
+			},
+			payload: ioutil.NopCloser(bytes.NewBufferString(`{"value":"test"}`)),
+			want:    []byte(`{"test":{"two":"te","one":"test"},"value":"test"}`),
+		},
+		{
+			name: "multiple overlays",
+			CEL: &triggersv1.CELInterceptor{
+				Filter: "body.value == 'test'",
+				Overlays: []triggersv1.CELOverlay{
+					{Key: "test.one", Expression: "body.value"},
 					{Key: "test.two", Expression: "body.value"},
 				},
 			},
 			payload: ioutil.NopCloser(bytes.NewBufferString(`{"value":"test"}`)),
 			want:    []byte(`{"test":{"two":"test","one":"test"},"value":"test"}`),
 		},
+
 		{
 			name:    "nil body does not panic",
 			CEL:     &triggersv1.CELInterceptor{Filter: "header.match('x-test', 'test-value')"},

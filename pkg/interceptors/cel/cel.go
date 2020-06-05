@@ -91,6 +91,10 @@ func (w *Interceptor) ExecuteTrigger(request *http.Request) (*http.Response, err
 	}
 
 	for _, u := range w.CEL.Overlays {
+		evalContext, err := makeEvalContext(payload, request)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update the context: %s", err)
+		}
 		val, err := evaluate(u.Expression, env, evalContext)
 		if err != nil {
 			return nil, fmt.Errorf("failed to evaluate overlay expression '%s': %w", u.Expression, err)
