@@ -176,6 +176,14 @@ func TestInterceptor_ExecuteTrigger(t *testing.T) {
 			payload: ioutil.NopCloser(bytes.NewBufferString(`{"count":1,"measure":1.7}`)),
 			want:    []byte(`{"count":1,"measure":1.7}`),
 		},
+		{
+			name: "bitbucket check",
+			CEL: &triggersv1.CELInterceptor{
+				Filter: "header.match('X-Event-Key', 'pr:merged') && body.pullRequest.toRef.displayId.matches('develop') && body.pullRequest.toRef.repository.name in ['test1', 'tekton-testing']",
+			},
+			payload: ioutil.NopCloser(bytes.NewBuffer(mustReadFixture(t, "testdata/bitbucket.json"))),
+			want:    []byte(mustReadFixture(t, "testdata/bitbucket.json")),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(rt *testing.T) {
@@ -192,6 +200,7 @@ func TestInterceptor_ExecuteTrigger(t *testing.T) {
 					"Content-Type":   []string{"application/json"},
 					"X-Test":         []string{"test-value"},
 					"X-Secret-Token": []string{"secrettoken"},
+					"X-Event-Key":    []string{"pr:merged"},
 				},
 			}
 			resp, err := w.ExecuteTrigger(request)
@@ -596,4 +605,13 @@ func makeSecret() *corev1.Secret {
 			"token": []byte("secrettoken"),
 		},
 	}
+}
+
+func mustReadFixture(t *testing.T, filename string) []byte {
+	t.Helper()
+	b, err := ioutil.ReadFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }

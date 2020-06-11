@@ -1,0 +1,58 @@
+{
+  "eventKey": "pr:merged",
+  "date": "2020-06-10T22:30:49-0400",
+  "pullRequest": {
+    "id": 7,
+    "version": 2,
+    "title": "v1.0.1",
+    "state": "MERGED",
+    "open": false,
+    "closed": true,
+    "createdDate": 1591842624735,
+    "updatedDate": 1591842649837,
+    "closedDate": 1591842649837,
+    "fromRef": {
+      "id": "refs/heads/testing",
+      "displayId": "testing",
+      "latestCommit": "f1c40993af77cafccffefdf4f6cb9d5d373cd56a",
+      "repository": {
+        "slug": "tekton-testing",
+        "id": 657,
+        "name": "tekton-testing",
+        "scmId": "git",
+        "state": "AVAILABLE",
+        "statusMessage": "Available",
+        "forkable": true,
+        "project": {
+          "key": "SYS",
+          "id": 126,
+          "name": "Sysops",
+          "public": false,
+          "type": "NORMAL"
+        },
+        "public": false
+      }
+    },
+    "toRef": {
+      "id": "refs/heads/develop",
+      "displayId": "develop",
+      "latestCommit": "dabf4f338312e55791216da428b785c92b84e3dd",
+      "repository": {
+        "slug": "tekton-testing",
+        "id": 657,
+        "name": "tekton-testing",
+        "scmId": "git",
+        "state": "AVAILABLE",
+        "statusMessage": "Available",
+        "forkable": true,
+        "project": {
+          "key": "SYS",
+          "id": 126,
+          "name": "Sysops",
+          "public": false,
+          "type": "NORMAL"
+        }
+      }
+    }
+  }
+}
