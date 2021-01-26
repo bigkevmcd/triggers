@@ -83,13 +83,14 @@ func TriggerResourceTemplate(resourceTemplate runtime.RawExtension) TriggerTempl
 }
 
 // TriggerTemplateParam adds a ParamSpec to the TriggerTemplateSpec.
-func TriggerTemplateParam(name, description, defaultValue string) TriggerTemplateSpecOp {
+func TriggerTemplateParam(name, description, defaultValue string, escape bool) TriggerTemplateSpecOp {
 	return func(spec *v1alpha1.TriggerTemplateSpec) {
 		spec.Params = append(spec.Params,
 			v1alpha1.ParamSpec{
 				Name:        name,
 				Description: description,
 				Default:     &defaultValue,
+				Escape:      escape,
 			})
 	}
 }

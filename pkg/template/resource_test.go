@@ -165,8 +165,9 @@ func Test_ApplyParamsToResourceTemplate(t *testing.T) {
 	rt := json.RawMessage(`{"oneparam": "$(tt.params.oneid)", "twoparam": "$(tt.params.twoid)", "threeparam": "$(tt.params.threeid)"`)
 	rt3 := json.RawMessage(`{"actualParam": "$(tt.params.oneid)", "invalidParam": "$(tt.params1.invalidid)", "deprecatedParam": "$(params.twoid)"`)
 	type args struct {
-		params []triggersv1.Param
-		rt     json.RawMessage
+		params     []triggersv1.Param
+		paramSpecs []triggersv1.ParamSpec
+		rt         json.RawMessage
 	}
 	tests := []struct {
 		name      string
@@ -230,7 +231,7 @@ func Test_ApplyParamsToResourceTemplate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyParamsToResourceTemplate(tt.args.params, tt.args.rt, tt.oldEscape)
+			got := applyParamsToResourceTemplate(tt.args.params, tt.args.paramSpecs, tt.args.rt, tt.oldEscape)
 			if diff := cmp.Diff(string(tt.want), string(got)); diff != "" {
 				t.Errorf("applyParamsToResourceTemplate(): -want +got: %s\n%s\n", diff, string(got))
 			}

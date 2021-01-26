@@ -38,7 +38,8 @@ const (
 
 // ResolveParams takes given triggerbindings and produces the resulting
 // resource params.
-func ResolveParams(rt ResolvedTrigger, body []byte, header http.Header, extensions map[string]interface{}) ([]triggersv1.Param, error) {
+func ResolveParams(rt ResolvedTrigger, body []byte, header http.Header,
+	extensions map[string]interface{}) ([]triggersv1.Param, error) {
 	var ttParams []triggersv1.ParamSpec
 	if rt.TriggerTemplate != nil {
 		ttParams = rt.TriggerTemplate.Spec.Params
@@ -60,7 +61,11 @@ func ResolveResources(template *triggersv1.TriggerTemplate, params []triggersv1.
 	oldEscape := metav1.HasAnnotation(template.ObjectMeta, OldEscapeAnnotation)
 
 	for i := range template.Spec.ResourceTemplates {
-		resources[i] = applyParamsToResourceTemplate(params, template.Spec.ResourceTemplates[i].RawExtension.Raw, oldEscape)
+		resources[i] = applyParamsToResourceTemplate(
+			params,
+			template.Spec.Params,
+			template.Spec.ResourceTemplates[i].RawExtension.Raw,
+			oldEscape)
 		resources[i] = applyUIDToResourceTemplate(resources[i], uid)
 	}
 	return resources

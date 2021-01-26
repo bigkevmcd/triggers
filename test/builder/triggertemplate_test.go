@@ -67,7 +67,7 @@ func TestTriggerTemplateBuilder(t *testing.T) {
 			},
 			builder: TriggerTemplate("name", "namespace",
 				TriggerTemplateSpec(
-					TriggerTemplateParam("param1", "description", "value1"),
+					TriggerTemplateParam("param1", "description", "value1", false),
 				),
 			),
 		},
@@ -95,8 +95,8 @@ func TestTriggerTemplateBuilder(t *testing.T) {
 			},
 			builder: TriggerTemplate("name", "namespace",
 				TriggerTemplateSpec(
-					TriggerTemplateParam("param1", "description", "value1"),
-					TriggerTemplateParam("param2", "description", "value2"),
+					TriggerTemplateParam("param1", "description", "value1", false),
+					TriggerTemplateParam("param2", "description", "value2", false),
 				),
 			),
 		},
@@ -189,10 +189,34 @@ func TestTriggerTemplateBuilder(t *testing.T) {
 					Label("key", "value"),
 				),
 				TriggerTemplateSpec(
-					TriggerTemplateParam("param1", "description", "value1"),
-					TriggerTemplateParam("param2", "description", "value2"),
+					TriggerTemplateParam("param1", "description", "value1", false),
+					TriggerTemplateParam("param2", "description", "value2", false),
 					TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "value"}`)}),
 					TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt2": "value"}`)}),
+				),
+			),
+		},
+		{
+			name: "param with escaping",
+			normal: &v1alpha1.TriggerTemplate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "namespace",
+				},
+				Spec: v1alpha1.TriggerTemplateSpec{
+					Params: []v1alpha1.ParamSpec{
+						{
+							Name:        "param1",
+							Description: "description",
+							Default:     &defaultValue1,
+							Escape:      true,
+						},
+					},
+				},
+			},
+			builder: TriggerTemplate("name", "namespace",
+				TriggerTemplateSpec(
+					TriggerTemplateParam("param1", "description", "value1", true),
 				),
 			),
 		},

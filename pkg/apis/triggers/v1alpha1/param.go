@@ -1,6 +1,6 @@
 package v1alpha1
 
-// ParamSpec defines an arbitrary named  input whose value can be supplied by a
+// ParamSpec defines an arbitrary named input whose value can be supplied by a
 // `Param`.
 type ParamSpec struct {
 	// Name declares the name by which a parameter is referenced.
@@ -12,6 +12,9 @@ type ParamSpec struct {
 	// Default is the value a parameter takes if no input value via a Param is supplied.
 	// +optional
 	Default *string `json:"default,omitempty"`
+	// Escape indicates whether or not the value should be escaped as JSON
+	// before inserting into the templated bodies.
+	Escape bool `json:"escape,omitempty"`
 }
 
 // Param defines a string value to be used for a ParamSpec with the same name.

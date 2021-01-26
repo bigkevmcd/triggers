@@ -114,12 +114,21 @@ func resolveBindingsToParams(bindings []*triggersv1.TriggerSpecBinding, getTB ge
 
 // applyParamsToResourceTemplate returns the TriggerResourceTemplate with the
 // param values substituted for all matching param variables in the template
-func applyParamsToResourceTemplate(params []triggersv1.Param, rt json.RawMessage, oldEscape bool) json.RawMessage {
+func applyParamsToResourceTemplate(params []triggersv1.Param, specs []triggersv1.ParamSpec, rt json.RawMessage, oldEscape bool) json.RawMessage {
 	// Assume the params are valid
 	for _, param := range params {
-		rt = applyParamToResourceTemplate(param, rt, oldEscape)
+		rt = applyParamToResourceTemplate(param, rt, oldEscape || escapeParam(param, specs))
 	}
 	return rt
+}
+
+func escapeParam(param triggersv1.Param, specs []triggersv1.ParamSpec) bool {
+	for _, s := range specs {
+		if s.Name == param.Name {
+			return s.Escape
+		}
+	}
+	return false
 }
 
 // applyParamToResourceTemplate returns the TriggerResourceTemplate with the

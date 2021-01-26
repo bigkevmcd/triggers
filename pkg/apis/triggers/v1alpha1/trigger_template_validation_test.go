@@ -100,7 +100,7 @@ func TestTriggerTemplate_Validate(t *testing.T) {
 		{
 			name: "invalid objectmetadata, name with dot",
 			template: b.TriggerTemplate("t.t", "foo", b.TriggerTemplateSpec(
-				b.TriggerTemplateParam("foo", "desc", "val"),
+				b.TriggerTemplateParam("foo", "desc", "val", false),
 				b.TriggerResourceTemplate(simpleResourceTemplate(t)))),
 			want: &apis.FieldError{
 				Message: "Invalid resource name: special character . must not be present",
@@ -112,7 +112,7 @@ func TestTriggerTemplate_Validate(t *testing.T) {
 			template: b.TriggerTemplate(
 				"ttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
 				"foo", b.TriggerTemplateSpec(
-					b.TriggerTemplateParam("foo", "desc", "val"),
+					b.TriggerTemplateParam("foo", "desc", "val", false),
 					b.TriggerResourceTemplate(simpleResourceTemplate(t)))),
 			want: &apis.FieldError{
 				Message: "Invalid resource name: length must be no more than 63 characters",
@@ -122,19 +122,19 @@ func TestTriggerTemplate_Validate(t *testing.T) {
 		{
 			name: "valid template",
 			template: b.TriggerTemplate("tt", "foo", b.TriggerTemplateSpec(
-				b.TriggerTemplateParam("foo", "desc", "val"),
+				b.TriggerTemplateParam("foo", "desc", "val", false),
 				b.TriggerResourceTemplate(simpleResourceTemplate(t)))),
 			want: nil,
 		}, {
 			name: "valid v1beta1 template",
 			template: b.TriggerTemplate("tt", "foo", b.TriggerTemplateSpec(
-				b.TriggerTemplateParam("foo", "desc", "val"),
+				b.TriggerTemplateParam("foo", "desc", "val", false),
 				b.TriggerResourceTemplate(v1beta1ResourceTemplate(t)))),
 			want: nil,
 		}, {
 			name: "missing resource template",
 			template: b.TriggerTemplate("tt", "foo", b.TriggerTemplateSpec(
-				b.TriggerTemplateParam("foo", "desc", "val"))),
+				b.TriggerTemplateParam("foo", "desc", "val", false))),
 			want: &apis.FieldError{
 				Message: "missing field(s)",
 				Paths:   []string{"spec.resourcetemplates"},
@@ -142,7 +142,7 @@ func TestTriggerTemplate_Validate(t *testing.T) {
 		}, {
 			name: "resource template missing kind",
 			template: b.TriggerTemplate("tt", "foo", b.TriggerTemplateSpec(
-				b.TriggerTemplateParam("foo", "desc", "val"),
+				b.TriggerTemplateParam("foo", "desc", "val", false),
 				b.TriggerResourceTemplate(test.RawExtension(t, pipelinev1alpha1.PipelineRun{
 					TypeMeta: metav1.TypeMeta{
 						APIVersion: "tekton.dev/v1alpha1",
@@ -155,7 +155,7 @@ func TestTriggerTemplate_Validate(t *testing.T) {
 		}, {
 			name: "resource template missing apiVersion",
 			template: b.TriggerTemplate("tt", "foo", b.TriggerTemplateSpec(
-				b.TriggerTemplateParam("foo", "desc", "val"),
+				b.TriggerTemplateParam("foo", "desc", "val", false),
 				b.TriggerResourceTemplate(test.RawExtension(t, pipelinev1alpha1.PipelineRun{
 					TypeMeta: metav1.TypeMeta{
 						Kind: "PipelineRun",
@@ -168,7 +168,7 @@ func TestTriggerTemplate_Validate(t *testing.T) {
 		}, {
 			name: "resource template invalid apiVersion",
 			template: b.TriggerTemplate("tt", "foo", b.TriggerTemplateSpec(
-				b.TriggerTemplateParam("foo", "desc", "val"),
+				b.TriggerTemplateParam("foo", "desc", "val", false),
 				b.TriggerResourceTemplate(test.RawExtension(t, pipelinev1alpha1.PipelineRun{
 					TypeMeta: metav1.TypeMeta{
 						APIVersion: "foobar",
@@ -182,7 +182,7 @@ func TestTriggerTemplate_Validate(t *testing.T) {
 		}, {
 			name: "resource template invalid kind",
 			template: b.TriggerTemplate("tt", "foo", b.TriggerTemplateSpec(
-				b.TriggerTemplateParam("foo", "desc", "val"),
+				b.TriggerTemplateParam("foo", "desc", "val", false),
 				b.TriggerResourceTemplate(test.RawExtension(t, pipelinev1alpha1.PipelineRun{
 					TypeMeta: metav1.TypeMeta{
 						APIVersion: "foo",
@@ -196,7 +196,7 @@ func TestTriggerTemplate_Validate(t *testing.T) {
 		}, {
 			name: "tt.params used in resource template are declared",
 			template: b.TriggerTemplate("tt", "foo", b.TriggerTemplateSpec(
-				b.TriggerTemplateParam("foo", "desc", "val"),
+				b.TriggerTemplateParam("foo", "desc", "val", false),
 				b.TriggerResourceTemplate(paramResourceTemplate(t)))),
 			want: nil,
 		}, {
@@ -216,7 +216,7 @@ func TestTriggerTemplate_Validate(t *testing.T) {
 		}, {
 			name: "invalid params used in resource template are declared",
 			template: b.TriggerTemplate("tt", "foo", b.TriggerTemplateSpec(
-				b.TriggerTemplateParam("foo", "desc", "val"),
+				b.TriggerTemplateParam("foo", "desc", "val", false),
 				b.TriggerResourceTemplate(invalidParamResourceTemplate(t)))),
 			want: nil,
 		}, {

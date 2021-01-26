@@ -362,7 +362,7 @@ func TestResolveParams(t *testing.T) {
 		},
 		template: bldr.TriggerTemplate("tt-name", ns,
 			bldr.TriggerTemplateSpec(
-				bldr.TriggerTemplateParam("p2", "", "defaultVal"),
+				bldr.TriggerTemplateParam("p2", "", "defaultVal", false),
 			),
 		),
 		want: []triggersv1.Param{
@@ -377,7 +377,7 @@ func TestResolveParams(t *testing.T) {
 		},
 		template: bldr.TriggerTemplate("tt-name", ns,
 			bldr.TriggerTemplateSpec(
-				bldr.TriggerTemplateParam("p2", "", "defaultVal"),
+				bldr.TriggerTemplateParam("p2", "", "defaultVal", false),
 			),
 		),
 		want: []triggersv1.Param{
@@ -391,7 +391,7 @@ func TestResolveParams(t *testing.T) {
 		},
 		template: bldr.TriggerTemplate("tt-name", ns,
 			bldr.TriggerTemplateSpec(
-				bldr.TriggerTemplateParam("p1", "", "defaultVal"),
+				bldr.TriggerTemplateParam("p1", "", "defaultVal", false),
 			),
 		),
 		want: []triggersv1.Param{
@@ -412,8 +412,8 @@ func TestResolveParams(t *testing.T) {
 		body: json.RawMessage(`{"foo": "bar\r\nbaz"}`),
 		template: bldr.TriggerTemplate("tt-name", "",
 			bldr.TriggerTemplateSpec(
-				bldr.TriggerTemplateParam("param1", "", ""),
-				bldr.TriggerTemplateParam("param2", "", ""),
+				bldr.TriggerTemplateParam("param1", "", "", false),
+				bldr.TriggerTemplateParam("param2", "", "", false),
 			),
 		),
 		bindingParams: []triggersv1.Param{
@@ -472,89 +472,105 @@ func TestResolveParams_Error(t *testing.T) {
 	}
 }
 
-func addOldEscape(t *triggersv1.TriggerTemplate) *triggersv1.TriggerTemplate {
-	t.Annotations = map[string]string{
-		OldEscapeAnnotation: "yes",
-	}
-	return t
-}
-
 func TestResolveResources(t *testing.T) {
 	tests := []struct {
 		name     string
 		template *triggersv1.TriggerTemplate
 		params   []triggersv1.Param
 		want     []json.RawMessage
-	}{{
-		name: "replace single values in templates",
-		template: bldr.TriggerTemplate("tt", ns, bldr.TriggerTemplateSpec(
-			bldr.TriggerTemplateParam("p1", "desc", ""),
-			bldr.TriggerTemplateParam("p2", "desc", ""),
-			bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "$(tt.params.p1)-$(tt.params.p2)"}`)}),
-			bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt2": "$(tt.params.p1)-$(tt.params.p2)"}`)}),
-		)),
-		params: []triggersv1.Param{
-			bldr.Param("p1", "val1"),
-			bldr.Param("p2", "42"),
+	}{
+		{
+			name: "replace single values in templates",
+			template: bldr.TriggerTemplate("tt", ns, bldr.TriggerTemplateSpec(
+				bldr.TriggerTemplateParam("p1", "desc", "", false),
+				bldr.TriggerTemplateParam("p2", "desc", "", false),
+				bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "$(tt.params.p1)-$(tt.params.p2)"}`)}),
+				bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt2": "$(tt.params.p1)-$(tt.params.p2)"}`)}),
+			)),
+			params: []triggersv1.Param{
+				bldr.Param("p1", "val1"),
+				bldr.Param("p2", "42"),
+			},
+			want: []json.RawMessage{
+				json.RawMessage(`{"rt1": "val1-42"}`),
+				json.RawMessage(`{"rt2": "val1-42"}`),
+			},
+		}, {
+			name: "replace JSON string in templates",
+			template: bldr.TriggerTemplate("tt", ns, addOldEscape, bldr.TriggerTemplateSpec(
+				bldr.TriggerTemplateParam("p1", "desc", "", false),
+				bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "$(tt.params.p1)"}`)}),
+			)),
+			params: []triggersv1.Param{
+				bldr.Param("p1", `{"a": "b"}`),
+			},
+			want: []json.RawMessage{
+				// json objects get inserted as a valid JSON string
+				json.RawMessage(`{"rt1": "{\"a\": \"b\"}"}`),
+			},
+		}, {
+			name: "replace JSON string with special chars in templates",
+			template: bldr.TriggerTemplate("tt", ns, addOldEscape, bldr.TriggerTemplateSpec(
+				bldr.TriggerTemplateParam("p1", "desc", "", false),
+				bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "$(tt.params.p1)"}`)}),
+			)),
+			params: []triggersv1.Param{
+				bldr.Param("p1", `{"a": "v\\r\\n烈"}`),
+			},
+			want: []json.RawMessage{
+				json.RawMessage(`{"rt1": "{\"a\": \"v\\r\\n烈\"}"}`),
+			},
+		}, {
+			name: "$(uid) gets replaced with a string",
+			template: bldr.TriggerTemplate("tt", ns, bldr.TriggerTemplateSpec(
+				bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "$(uid)"}`)}),
+			)),
+			want: []json.RawMessage{
+				json.RawMessage(`{"rt1": "cbhtc"}`),
+			},
+		}, {
+			name: "uid replacement is consistent across multiple templates",
+			template: bldr.TriggerTemplate("tt", ns, bldr.TriggerTemplateSpec(
+				bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "$(uid)"}`)}),
+				bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt2": "$(uid)"}`)}),
+			)),
+			want: []json.RawMessage{
+				json.RawMessage(`{"rt1": "cbhtc"}`),
+				json.RawMessage(`{"rt2": "cbhtc"}`),
+			},
 		},
-		want: []json.RawMessage{
-			json.RawMessage(`{"rt1": "val1-42"}`),
-			json.RawMessage(`{"rt2": "val1-42"}`),
+		{
+			name: "replace JSON string in templates with escaped param",
+			template: bldr.TriggerTemplate("tt", ns, bldr.TriggerTemplateSpec(
+				bldr.TriggerTemplateParam("p1", "desc", "", true),
+				bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "$(tt.params.p1)"}`)}),
+			)),
+			params: []triggersv1.Param{
+				bldr.Param("p1", `{"a": "b"}`),
+			},
+			want: []json.RawMessage{
+				// json objects get inserted as a valid JSON string
+				json.RawMessage(`{"rt1": "{\"a\": \"b\"}"}`),
+			},
 		},
-	}, {
-		name: "replace JSON string in templates",
-		template: bldr.TriggerTemplate("tt", ns, bldr.TriggerTemplateSpec(
-			bldr.TriggerTemplateParam("p1", "desc", ""),
-			bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "$(tt.params.p1)"}`)}),
-		)),
-		params: []triggersv1.Param{
-			bldr.Param("p1", `{"a": "b"}`),
-		},
-		want: []json.RawMessage{
-			// json objects get inserted as a valid JSON string
-			json.RawMessage(`{"rt1": "{\"a\": \"b\"}"}`),
-		},
-	}, {
-		name: "replace JSON string with special chars in templates",
-		template: bldr.TriggerTemplate("tt", ns, bldr.TriggerTemplateSpec(
-			bldr.TriggerTemplateParam("p1", "desc", ""),
-			bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "$(tt.params.p1)"}`)}),
-		)),
-		params: []triggersv1.Param{
-			bldr.Param("p1", `{"a": "v\\r\\n烈"}`),
-		},
-		want: []json.RawMessage{
-			json.RawMessage(`{"rt1": "{\"a\": \"v\\r\\n烈\"}"}`),
-		},
-	}, {
-		name: "$(uid) gets replaced with a string",
-		template: bldr.TriggerTemplate("tt", ns, bldr.TriggerTemplateSpec(
-			bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "$(uid)"}`)}),
-		)),
-		want: []json.RawMessage{
-			json.RawMessage(`{"rt1": "cbhtc"}`),
-		},
-	}, {
-		name: "uid replacement is consistent across multiple templates",
-		template: bldr.TriggerTemplate("tt", ns, bldr.TriggerTemplateSpec(
-			bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt1": "$(uid)"}`)}),
-			bldr.TriggerResourceTemplate(runtime.RawExtension{Raw: []byte(`{"rt2": "$(uid)"}`)}),
-		)),
-		want: []json.RawMessage{
-			json.RawMessage(`{"rt1": "cbhtc"}`),
-			json.RawMessage(`{"rt2": "cbhtc"}`),
-		},
-	}}
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Seeded for UID() to return "cbhtc"
 			utilrand.Seed(0)
-			got := ResolveResources(addOldEscape(tt.template), tt.params)
+			got := ResolveResources(tt.template, tt.params)
 			// Use toString so that it is easy to compare the json.RawMessage diffs
 			if diff := cmp.Diff(toString(tt.want), toString(got)); diff != "" {
 				t.Errorf("didn't get expected resource template -want + got: %s", diff)
 			}
 		})
 	}
+}
+
+func addOldEscape(tt *triggersv1.TriggerTemplate) {
+	if tt.Annotations == nil {
+		tt.Annotations = map[string]string{}
+	}
+	tt.Annotations[OldEscapeAnnotation] = "yes"
 }
