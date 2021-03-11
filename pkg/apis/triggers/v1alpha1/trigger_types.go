@@ -113,6 +113,13 @@ type GitHubInterceptor struct {
 	EventTypes []string   `json:"eventTypes,omitempty"`
 }
 
+// HmacInterceptor provides an interceptor that can validate incoming requests
+// with an HMAC signature.
+type HmacInterceptor struct {
+	SecretRef *SecretRef `json:"secretRef"`
+	Header    string     `json:"header"`
+}
+
 // GitLabInterceptor provides a webhook to intercept and pre-process events
 type GitLabInterceptor struct {
 	SecretRef  *SecretRef `json:"secretRef,omitempty"`
