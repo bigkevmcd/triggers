@@ -215,6 +215,8 @@ func (w *InterceptorImpl) Process(ctx context.Context, r *triggersv1.Interceptor
 			if err == nil {
 				b, err = json.Marshal(raw.(*structpb.Value).GetBoolValue())
 			}
+		case types.Null:
+			b, err = []byte(`null`), nil
 		default:
 			raw, err = val.ConvertToNative(reflect.TypeOf([]byte{}))
 			if err == nil {

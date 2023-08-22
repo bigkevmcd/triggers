@@ -442,6 +442,21 @@ which can be accessed by indexing.
      <pre>{"testing":"value"}.marshalJSON() == "{\"testing\": \"value\"}"</pre>
     </td>
   </tr>
+  <tr>
+    <th>
+     coalesce()
+    </th>
+    <td>
+     <pre>&lt;list&gt;.coalesce() -> &lt;value&gt;</pre>
+    </td>
+    <td>
+      Returns the first non-empty value from a list of values.
+    </td>
+    <td>
+     <pre>["", "testing"].coalesce() == "testing"</pre>
+    </td>
+  </tr>
+
 </table>
 
 ## Troubleshooting CEL expressions

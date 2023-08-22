@@ -155,6 +155,21 @@ func TestInterceptor_Process(t *testing.T) {
 			"val1": float64(2),
 		},
 	}, {
+		name: "coalescing values",
+		CEL: &InterceptorParams{
+			Overlays: []Overlay{
+				{Key: "coalesced", Expression: "[body.value2, body.value3, body.value4].coalesce()"},
+				{Key: "coalesced_nonexistent", Expression: "[body.value2].coalesce()"},
+				{Key: "coalesced_numbers", Expression: "[body.number1,body.number2].coalesce()"},
+			},
+		},
+		body: json.RawMessage(`{"value2":null,"value3":"","value4":"testing","number1":null,"number2":5}`),
+		wantExtensions: map[string]interface{}{
+			"coalesced":             "testing",
+			"coalesced_nonexistent": nil,
+			"coalesced_numbers":     5.0,
+		},
+	}, {
 		name: "validating a secret",
 		CEL: &InterceptorParams{
 			Filter: "header.canonical('X-Secret-Token').compareSecret('token', 'test-secret', 'testing-ns')",
@@ -202,6 +217,21 @@ func TestInterceptor_Process(t *testing.T) {
 		},
 	}, {
 		name: "demonstrate defaulting logic within cel interceptor",
+		CEL: &InterceptorParams{
+			Overlays: []Overlay{
+				{Key: "one", Expression: "has(body.value) ? body.value : 'default'"},
+				{Key: "two", Expression: "has(body.test.second) ? body.test.second : 'default'"},
+				{Key: "three", Expression: "has(body.test.third) && has(body.test.third.thing) ? body.value.third.thing : 'default'"},
+			},
+		},
+		body: json.RawMessage(`{"value":"test","test":{"other":"thing"}}`),
+		wantExtensions: map[string]interface{}{
+			"one":   "test",
+			"two":   "default",
+			"three": "default",
+		},
+	}, {
+		name: "coalesce function coalesces non-empty values",
 		CEL: &InterceptorParams{
 			Overlays: []Overlay{
 				{Key: "one", Expression: "has(body.value) ? body.value : 'default'"},

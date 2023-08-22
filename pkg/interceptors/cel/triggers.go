@@ -27,6 +27,7 @@ import (
 	"github.com/google/cel-go/cel"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
+	"github.com/google/cel-go/common/types/traits"
 	"github.com/google/cel-go/interpreter/functions"
 	"github.com/tektoncd/triggers/pkg/interceptors"
 	"sigs.k8s.io/yaml"
@@ -157,7 +158,9 @@ type triggersLib struct {
 
 func (t triggersLib) CompileOptions() []cel.EnvOption {
 	mapStrDyn := cel.MapType(cel.StringType, cel.DynType)
-	listStrDyn := cel.ListType(cel.DynType)
+	listDyn := cel.ListType(cel.DynType)
+	listType := cel.ListType(cel.TypeParamType("T"))
+
 	return []cel.EnvOption{
 		cel.Function("match",
 			cel.MemberOverload("match_map_string_string", []*cel.Type{mapStrDyn, cel.StringType, cel.StringType}, cel.BoolType,
@@ -185,8 +188,11 @@ func (t triggersLib) CompileOptions() []cel.EnvOption {
 		cel.Function("marshalJSON",
 			cel.MemberOverload("marshalJSON_map", []*cel.Type{mapStrDyn}, cel.StringType,
 				cel.UnaryBinding(marshalJSON)),
-			cel.MemberOverload("marshalJSON_list", []*cel.Type{listStrDyn}, cel.StringType,
+			cel.MemberOverload("marshalJSON_list", []*cel.Type{listDyn}, cel.StringType,
 				cel.UnaryBinding(marshalJSON))),
+		cel.Function("coalesce",
+			cel.MemberOverload("coalesce_list", []*cel.Type{listType}, cel.DynType,
+				cel.UnaryBinding(coalesce))),
 	}
 }
 
@@ -322,6 +328,22 @@ func marshalJSON(val ref.Val) ref.Val {
 	}
 
 	return types.String(marshaledVal)
+}
+
+func coalesce(list ref.Val) ref.Val {
+	l := list.(traits.Lister)
+
+	it := l.Iterator()
+	for it.HasNext() == types.True {
+		v := it.Next()
+		zeroValue := reflect.Zero(reflect.TypeOf(v)).Interface()
+
+		if !reflect.DeepEqual(zeroValue, v) {
+			return v
+		}
+	}
+
+	return types.NullValue
 }
 
 func max(x, y types.Int) types.Int {
