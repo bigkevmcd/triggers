@@ -654,6 +654,39 @@ func TestHandleEvent(t *testing.T) {
 		eventBody: eventBody,
 		want:      []pipelinev1.TaskRun{gitCloneTaskRun},
 	}, {
+		name: "eventlistener with a trigger ref and namespace selector",
+		resources: test.Resources{
+			TriggerBindings:  []*triggersv1beta1.TriggerBinding{gitCloneTB},
+			TriggerTemplates: []*triggersv1beta1.TriggerTemplate{gitCloneTT},
+			Triggers: []*triggersv1beta1.Trigger{{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "git-clone-trigger",
+					Namespace: namespace,
+				},
+				Spec: triggersv1beta1.TriggerSpec{
+					Bindings: []*triggersv1beta1.TriggerSpecBinding{{Ref: "git-clone"}},
+					Template: triggersv1beta1.TriggerSpecTemplate{Ref: ptr.String("git-clone")},
+				},
+			}},
+			EventListeners: []*triggersv1beta1.EventListener{{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      eventListenerName,
+					Namespace: namespace,
+					UID:       types.UID(elUID),
+				},
+				Spec: triggersv1beta1.EventListenerSpec{
+					Triggers: []triggersv1beta1.EventListenerTrigger{{
+						TriggerRef: "git-clone-trigger",
+					}},
+					NamespaceSelector: triggersv1beta1.NamespaceSelector{
+						MatchNames: []string{"*"},
+					},
+				},
+			}},
+		},
+		eventBody: eventBody,
+		want:      []pipelinev1.TaskRun{gitCloneTaskRun},
+	}, {
 		name: "eventlistener with ref to trigger with embedded spec",
 		resources: test.Resources{
 			Triggers: []*triggersv1beta1.Trigger{{

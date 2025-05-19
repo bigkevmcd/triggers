@@ -47,6 +47,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/sets"
 	discoveryclient "k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -310,7 +311,9 @@ func (r Sink) merge(et []triggersv1.EventListenerTrigger, trItems []*triggersv1.
 			return nil, errors.New("EventListenerTrigger not defined")
 		}
 	}
-	return triggers, nil
+
+	merged := sets.New[*triggersv1.Trigger](triggers...)
+	return merged.UnsortedList(), nil
 }
 
 func (r Sink) processTriggerGroups(g triggersv1.EventListenerTriggerGroup, el *triggersv1.EventListener, request *http.Request, event []byte, eventID string, eventLog *zap.SugaredLogger, wg *sync.WaitGroup) {
@@ -360,6 +363,7 @@ func (r Sink) processTriggerGroups(g triggersv1.EventListenerTriggerGroup, el *t
 func (r Sink) selectTriggers(namespaceSelector triggersv1.NamespaceSelector, labelSelector *metav1.LabelSelector) ([]*triggersv1.Trigger, error) {
 	var trItems []*triggersv1.Trigger
 	var err error
+
 	targetLabels := labels.Everything()
 	if labelSelector != nil {
 		targetLabels, err = metav1.LabelSelectorAsSelector(labelSelector)
